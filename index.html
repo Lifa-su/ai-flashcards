@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 闪卡 - 智能记忆工具</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--pri:#6C5CE7;--pri-l:#a29bfe;--pri-d:#5541d6;--bg:#0f0f1a;--bg2:#1a1a2e;--bg3:#25253d;--tx:#e2e2f0;--tx2:#9999b3;--ok:#00b894;--warn:#fdcb6e;--err:#e17055;--card:#1e1e35;--r:12px;--sh:0 4px 20px rgba(0,0,0,.3)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--tx);min-height:100vh}
+button{cursor:pointer;border:none;font-family:inherit;font-size:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit}
+.app{display:flex;height:100vh;overflow:hidden}
+
+/* Sidebar */
+.sidebar{width:260px;background:var(--bg2);border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;flex-shrink:0;transition:transform .3s}
+.sidebar-hd{padding:20px;border-bottom:1px solid rgba(255,255,255,.06)}
+.sidebar-hd h1{font-size:1.2rem;background:linear-gradient(135deg,var(--pri-l),#fd79a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.deck-list{flex:1;overflow-y:auto;padding:8px}
+.deck-item{padding:10px 14px;border-radius:var(--r);cursor:pointer;margin-bottom:2px;display:flex;justify-content:space-between;align-items:center;transition:all .2s}
+.deck-item:hover{background:var(--bg3)}
+.deck-item.active{background:var(--pri);color:#fff}
+.deck-item .dk-name{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.deck-item .dk-cnt{font-size:.72rem;color:var(--tx2);margin-top:2px}
+.deck-item.active .dk-cnt{color:rgba(255,255,255,.7)}
+.deck-item .dk-acts{display:flex;gap:2px;opacity:0;transition:opacity .2s}
+.deck-item:hover .dk-acts{opacity:1}
+.deck-item .dk-acts button{background:none;color:var(--tx2);padding:4px 6px;font-size:.75rem;border-radius:4px}
+.deck-item .dk-acts button:hover{background:rgba(255,255,255,.1);color:var(--tx)}
+.sidebar-ft{padding:12px;border-top:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column;gap:6px}
+
+/* Buttons */
+.btn{padding:9px 16px;border-radius:var(--r);font-weight:600;font-size:.84rem;transition:all .2s;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn-pri{background:var(--pri);color:#fff}.btn-pri:hover{background:var(--pri-d);transform:translateY(-1px)}
+.btn-sec{background:var(--bg3);color:var(--tx)}.btn-sec:hover{background:rgba(255,255,255,.12)}
+.btn-err{background:var(--err);color:#fff}.btn-err:hover{opacity:.85}
+.btn-ok{background:var(--ok);color:#fff}.btn-ok:hover{opacity:.85}
+.btn-sm{padding:5px 10px;font-size:.78rem}
+.btn-blk{width:100%}
+
+/* Main */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-shrink:0}
+.topbar-l{display:flex;align-items:center;gap:10px}
+.menu-btn{display:none;background:none;color:var(--tx);font-size:1.3rem;padding:4px}
+.topbar h2{font-size:1.05rem;font-weight:600}
+.topbar-r{display:flex;gap:6px;align-items:center}
+.content{flex:1;overflow-y:auto;padding:20px}
+
+/* Views */
+.view{display:none}.view.active{display:block}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px}
+.stat-card{background:var(--card);border-radius:var(--r);padding:14px;text-align:center}
+.stat-card .sv{font-size:1.7rem;font-weight:700;background:linear-gradient(135deg,var(--pri-l),#fd79a8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat-card .sl{font-size:.72rem;color:var(--tx2);margin-top:3px}
+
+/* Card list */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.card-item{background:var(--card);border-radius:var(--r);padding:14px;cursor:pointer;transition:all .2s;border:1px solid transparent}
+.card-item:hover{border-color:var(--pri);transform:translateY(-2px);box-shadow:var(--sh)}
+.card-item .cq{font-weight:600;font-size:.88rem;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-item .ca{font-size:.78rem;color:var(--tx2);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-item .cm{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:.68rem;color:var(--tx2)}
+.sr-badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:.64rem;font-weight:600}
+.sr-new{background:rgba(108,92,231,.2);color:var(--pri-l)}
+.sr-learn{background:rgba(253,203,110,.2);color:var(--warn)}
+.sr-review{background:rgba(0,184,148,.2);color:var(--ok)}
+.sr-over{background:rgba(225,112,85,.2);color:var(--err)}
+
+/* Study mode */
+.study-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;padding:20px}
+.study-prog{width:100%;max-width:480px;margin-bottom:20px}
+.prog-bar{height:5px;background:var(--bg3);border-radius:3px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--pri),#fd79a8);border-radius:3px;transition:width .3s}
+.prog-txt{font-size:.78rem;color:var(--tx2);margin-top:5px;text-align:center}
+.fc-wrap{perspective:1000px;width:100%;max-width:480px;height:300px;margin-bottom:20px}
+.fc{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .6s cubic-bezier(.4,.2,.2,1);cursor:pointer}
+.fc.flipped{transform:rotateY(180deg)}
+.fc-face{position:absolute;width:100%;height:100%;backface-visibility:hidden;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:1.05rem;line-height:1.6}
+.fc-front{background:linear-gradient(145deg,var(--bg3),var(--card));border:1px solid rgba(108,92,231,.3)}
+.fc-back{background:linear-gradient(145deg,#1a2a1a,#1e2e1e);border:1px solid rgba(0,184,148,.3);transform:rotateY(180deg)}
+.fc-label{position:absolute;top:14px;left:18px;font-size:.68rem;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:1px}
+.fc-hint{position:absolute;bottom:14px;font-size:.7rem;color:var(--tx2)}
+.rate-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.rate-btn{padding:10px 20px;border-radius:var(--r);font-weight:600;font-size:.82rem;color:#fff;min-width:80px}
+.rate-btn.again{background:#e17055}.rate-btn.hard{background:#fdcb6e;color:#333}
+.rate-btn.good{background:#00b894}.rate-btn.easy{background:#6c5ce7}
+.rate-btn span{display:block;font-size:.65rem;font-weight:400;margin-top:2px;opacity:.8}
+.study-done{text-align:center;padding:40px}
+.study-done h3{font-size:1.4rem;margin-bottom:10px}
+.study-done p{color:var(--tx2);margin-bottom:20px}
+
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:var(--bg2);border-radius:16px;width:100%;max-width:500px;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-hd{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center}
+.modal-hd h3{font-size:1rem}
+.modal-close{background:none;color:var(--tx2);font-size:1.3rem;padding:4px 8px;border-radius:6px}
+.modal-close:hover{background:var(--bg3);color:var(--tx)}
+.modal-bd{padding:20px}
+.modal-ft{padding:14px 20px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:flex-end;gap:8px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:.82rem;font-weight:600;margin-bottom:5px;color:var(--tx2)}
+.form-input{width:100%;padding:10px 14px;background:var(--bg3);border:1px solid rgba(255,255,255,.1);border-radius:var(--r);color:var(--tx);font-size:.88rem}
+.form-input:focus{outline:none;border-color:var(--pri)}
+textarea.form-input{min-height:80px;resize:vertical}
+.form-row{display:flex;gap:10px}
+.form-row>*{flex:1}
+
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--r);color:#fff;font-size:.85rem;font-weight:500;z-index:200;transform:translateY(100px);opacity:0;transition:all .3s}
+.toast.show{transform:translateY(0);opacity:1}
+.toast-ok{background:var(--ok)}.toast-err{background:var(--err)}.toast-info{background:var(--pri)}
+
+/* Empty state */
+.empty{text-align:center;padding:60px 20px;color:var(--tx2)}
+.empty .icon{font-size:3rem;margin-bottom:12px}
+.empty p{margin-bottom:16px}
+
+/* Responsive */
+@media(max-width:768px){
+.sidebar{position:fixed;left:0;top:0;bottom:0;z-index:50;transform:translateX(-100%)}
+.sidebar.open{transform:translateX(0)}
+.menu-btn{display:block}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
+.overlay.show{display:block}
+.stats-grid{grid-template-columns:repeat(2,1fr)}
+.card-grid{grid-template-columns:1fr}
+.rate-btns{gap:6px}.rate-btn{min-width:65px;padding:8px 12px;font-size:.78rem}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
+<aside class="sidebar" id="sidebar">
+<div class="sidebar-hd"><h1>🧠 AI 闪卡</h1></div>
+<div class="deck-list" id="deckList"></div>
+<div class="sidebar-ft">
+<button class="btn btn-pri btn-blk" onclick="showNewDeckModal()">+ 新建卡组</button>
+<button class="btn btn-sec btn-blk btn-sm" onclick="showSettings()">⚙️ 设置</button>
+</div>
+</aside>
+<main class="main">
+<div class="topbar">
+<div class="topbar-l">
+<button class="menu-btn" onclick="toggleSidebar()">☰</button>
+<h2 id="viewTitle">选择卡组</h2>
+</div>
+<div class="topbar-r" id="topbarActions"></div>
+</div>
+<div class="content" id="content">
+<div class="view active" id="welcomeView">
+<div class="empty"><div class="icon">🎴</div><p>选择左侧卡组开始学习，或创建新卡组</p></div>
+</div>
+<div class="view" id="deckView"></div>
+<div class="view" id="studyView"></div>
+</div>
+</main>
+</div>
+
+<!-- Modals -->
+<div class="modal-overlay" id="settingsModal">
+<div class="modal">
+<div class="modal-hd"><h3>⚙️ 设置</h3><button class="modal-close" onclick="hideModal('settingsModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group"><label>DeepSeek API Key</label><input class="form-input" id="apiKeyInput" type="password" placeholder="sk-..."></div>
+<div class="form-group"><label>API 地址</label><input class="form-input" id="apiUrlInput" value="https://api.deepseek.com/v1/chat/completions"></div>
+<div class="form-group"><label>每次生成闪卡数量</label><input class="form-input" id="cardCountInput" type="number" value="8" min="1" max="20"></div>
+</div>
+<div class="modal-ft"><button class="btn btn-sec" onclick="hideModal('settingsModal')">取消</button><button class="btn btn-pri" onclick="saveSettings()">保存</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="newDeckModal">
+<div class="modal">
+<div class="modal-hd"><h3>新建卡组</h3><button class="modal-close" onclick="hideModal('newDeckModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group"><label>卡组名称</label><input class="form-input" id="deckNameInput" placeholder="例如：JavaScript 基础"></div>
+<div class="form-group"><label>描述（可选）</label><input class="form-input" id="deckDescInput" placeholder="卡组描述"></div>
+</div>
+<div class="modal-ft"><button class="btn btn-sec" onclick="hideModal('newDeckModal')">取消</button><button class="btn btn-pri" onclick="createDeck()">创建</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="addCardModal">
+<div class="modal">
+<div class="modal-hd"><h3>添加闪卡</h3><button class="modal-close" onclick="hideModal('addCardModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group"><label>问题 / 正面</label><textarea class="form-input" id="cardFront" placeholder="输入问题"></textarea></div>
+<div class="form-group"><label>答案 / 背面</label><textarea class="form-input" id="cardBack" placeholder="输入答案"></textarea></div>
+</div>
+<div class="modal-ft"><button class="btn btn-sec" onclick="hideModal('addCardModal')">取消</button><button class="btn btn-pri" onclick="addCard()">添加</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="editCardModal">
+<div class="modal">
+<div class="modal-hd"><h3>编辑闪卡</h3><button class="modal-close" onclick="hideModal('editCardModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group"><label>问题 / 正面</label><textarea class="form-input" id="editFront"></textarea></div>
+<div class="form-group"><label>答案 / 背面</label><textarea class="form-input" id="editBack"></textarea></div>
+</div>
+<div class="modal-ft"><button class="btn btn-err" style="margin-right:auto" onclick="deleteCard()">删除</button><button class="btn btn-sec" onclick="hideModal('editCardModal')">取消</button><button class="btn btn-pri" onclick="saveCard()">保存</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="generateModal">
+<div class="modal">
+<div class="modal-hd"><h3>🤖 AI 生成闪卡</h3><button class="modal-close" onclick="hideModal('generateModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group">
+<label>生成方式</label>
+<select class="form-input" id="genMode" onchange="toggleGenMode()">
+<option value="topic">输入主题</option>
+<option value="notes">粘贴笔记/文章</option>
+</select>
+</div>
+<div class="form-group" id="genTopicGroup"><label>主题</label><input class="form-input" id="genTopic" placeholder="例如：量子力学基础、React Hooks"></div>
+<div class="form-group" id="genNotesGroup" style="display:none"><label>笔记/文章内容</label><textarea class="form-input" id="genNotes" style="min-height:150px" placeholder="粘贴你的笔记或文章内容..."></textarea></div>
+<div id="genStatus" style="display:none;padding:10px;text-align:center;color:var(--tx2);font-size:.85rem">⏳ 正在生成...</div>
+</div>
+<div class="modal-ft"><button class="btn btn-sec" onclick="hideModal('generateModal')">取消</button><button class="btn btn-pri" id="genBtn" onclick="generateCards()">🤖 生成闪卡</button></div>
+</div>
+</div>
+
+<div class="modal-overlay" id="importModal">
+<div class="modal">
+<div class="modal-hd"><h3>📥 导入闪卡</h3><button class="modal-close" onclick="hideModal('importModal')">&times;</button></div>
+<div class="modal-bd">
+<div class="form-group">
+<label>格式</label>
+<select class="form-input" id="importFormat">
+<option value="json">JSON</option>
+<option value="csv">CSV</option>
+<option value="anki">Anki (制表符分隔)</option>
+</select>
+</div>
+<div class="form-group"><label>粘贴内容或选择文件</label><textarea class="form-input" id="importData" style="min-height:120px" placeholder="粘贴导入数据..."></textarea></div>
+<div class="form-group"><input type="file" id="importFile" accept=".json,.csv,.txt" onchange="loadImportFile(this)"></div>
+</div>
+<div class="modal-ft"><button class="btn btn-sec" onclick="hideModal('importModal')">取消</button><button class="btn btn-pri" onclick="importCards()">导入</button></div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== State =====
+let state = {decks:[], settings:{apiKey:'',apiUrl:'https://api.deepseek.com/v1/chat/completions',cardCount:8}};
+let currentDeckId = null;
+let editingCardId = null;
+let studyQueue = [];
+let studyIndex = 0;
+let studyFlipped = false;
+
+function load(){
+  try{const d=localStorage.getItem('flashcards-state');if(d)state=JSON.parse(d)}catch(e){}
+  if(!state.settings)state.settings={apiKey:'',apiUrl:'https://api.deepseek.com/v1/chat/completions',cardCount:8};
+  if(!state.decks)state.decks=[];
+}
+function save(){localStorage.setItem('flashcards-state',JSON.stringify(state))}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+function today(){return new Date().toISOString().slice(0,10)}
+
+// ===== Toast =====
+function toast(msg,type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.className='toast toast-'+type+' show';
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// ===== Modal =====
+function showModal(id){document.getElementById(id).classList.add('show')}
+function hideModal(id){document.getElementById(id).classList.remove('show')}
+
+// ===== Sidebar =====
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('overlay').classList.toggle('show');
+}
+
+function renderDecks(){
+  const el=document.getElementById('deckList');
+  if(!state.decks.length){el.innerHTML='<div class="empty" style="padding:30px 10px"><p style="font-size:.82rem">还没有卡组</p></div>';return}
+  el.innerHTML=state.decks.map(d=>{
+    const due=getDueCards(d).length;
+    const cls=d.id===currentDeckId?'deck-item active':'deck-item';
+    return `<div class="${cls}" onclick="selectDeck('${d.id}')">
+      <div style="flex:1;min-width:0"><div class="dk-name">${esc(d.name)}</div>
+      <div class="dk-cnt">${d.cards.length} 张${due?' · <span style="color:var(--warn)">${due} 待复习</span>':''}</div></div>
+      <div class="dk-acts"><button onclick="event.stopPropagation();renameDeck('${d.id}')" title="重命名">✏️</button><button onclick="event.stopPropagation();deleteDeck('${d.id}')" title="删除">🗑️</button></div>
+    </div>`;
+  }).join('');
+}
+
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
+// ===== Deck CRUD =====
+function showNewDeckModal(){document.getElementById('deckNameInput').value='';document.getElementById('deckDescInput').value='';showModal('newDeckModal')}
+function createDeck(){
+  const name=document.getElementById('deckNameInput').value.trim();
+  if(!name){toast('请输入卡组名称','err');return}
+  const deck={id:uid(),name,desc:document.getElementById('deckDescInput').value.trim(),cards:[],created:today()};
+  state.decks.push(deck);save();renderDecks();hideModal('newDeckModal');
+  selectDeck(deck.id);toast('卡组已创建','ok');
+}
+function renameDeck(id){
+  const d=state.decks.find(x=>x.id===id);if(!d)return;
+  const name=prompt('重命名卡组',d.name);if(name&&name.trim()){d.name=name.trim();save();renderDecks();if(currentDeckId===id)renderDeckView()}
+}
+function deleteDeck(id){
+  const d=state.decks.find(x=>x.id===id);if(!d)return;
+  if(!confirm(`确定删除卡组「${d.name}」及其所有闪卡？`))return;
+  state.decks=state.decks.filter(x=>x.id!==id);save();
+  if(currentDeckId===id){currentDeckId=null;showView('welcomeView');document.getElementById('viewTitle').textContent='选择卡组';document.getElementById('topbarActions').innerHTML=''}
+  renderDecks();toast('已删除','ok');
+}
+
+// ===== SM-2 Algorithm =====
+function newSR(){return{ef:2.5,interval:0,reps:0,nextReview:today(),lastReview:null}}
+function calcSR(sr,quality){
+  // quality: 0=Again, 2=Hard, 3=Good, 5=Easy
+  const q=quality;
+  let{ef,interval,reps}=sr;
+  if(q>=3){
+    if(reps===0)interval=1;
+    else if(reps===1)interval=6;
+    else interval=Math.round(interval*ef);
+    reps++;
+  }else{
+    reps=0;interval=1;
+  }
+  ef=Math.max(1.3,ef+(0.1-(5-q)*(0.08+(5-q)*0.02)));
+  const next=new Date();next.setDate(next.getDate()+interval);
+  return{ef:Math.round(ef*100)/100,interval,reps,nextReview:next.toISOString().slice(0,10),lastReview:today()};
+}
+function getDueCards(deck){
+  const t=today();
+  return deck.cards.filter(c=>!c.sr||c.sr.nextReview<=t);
+}
+function getCardStatus(card){
+  if(!card.sr||card.sr.reps===0){
+    if(card.sr&&card.sr.lastReview)return'learn';
+    return'new';
+  }
+  if(card.sr.nextReview<=today())return'over';
+  return'review';
+}
+
+// ===== Views =====
+function showView(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function selectDeck(id){
+  currentDeckId=id;renderDecks();renderDeckView();showView('deckView');
+  // close sidebar on mobile
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+function renderDeckView(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);
+  if(!deck)return;
+  document.getElementById('viewTitle').textContent=deck.name;
+  const due=getDueCards(deck).length;
+  const learned=deck.cards.filter(c=>c.sr&&c.sr.reps>0).length;
+  const mastered=deck.cards.filter(c=>c.sr&&c.sr.reps>=3).length;
+
+  // topbar actions
+  document.getElementById('topbarActions').innerHTML=`
+    <button class="btn btn-pri btn-sm" onclick="startStudy()">📖 学习${due?' ('+due+')':''}</button>
+    <button class="btn btn-sec btn-sm" onclick="showGenerate()">🤖 AI生成</button>
+    <button class="btn btn-sec btn-sm" onclick="showModal('addCardModal')">+ 添加</button>
+    <button class="btn btn-sec btn-sm" onclick="showExportMenu()">📤</button>
+    <button class="btn btn-sec btn-sm" onclick="showModal('importModal')">📥</button>`;
+
+  let html=`<div class="stats-grid">
+    <div class="stat-card"><div class="sv">${deck.cards.length}</div><div class="sl">总卡片</div></div>
+    <div class="stat-card"><div class="sv">${due}</div><div class="sl">待复习</div></div>
+    <div class="stat-card"><div class="sv">${learned}</div><div class="sl">已学习</div></div>
+    <div class="stat-card"><div class="sv">${mastered}</div><div class="sl">已掌握</div></div>
+  </div>`;
+
+  if(!deck.cards.length){
+    html+=`<div class="empty"><div class="icon">📝</div><p>还没有闪卡，点击上方按钮添加或用 AI 生成</p></div>`;
+  }else{
+    html+='<div class="card-grid">';
+    deck.cards.forEach(c=>{
+      const st=getCardStatus(c);
+      const labels={new:'新卡片',learn:'学习中',review:'已掌握',over:'待复习'};
+      const cls={new:'sr-new',learn:'sr-learn',review:'sr-review',over:'sr-over'};
+      html+=`<div class="card-item" onclick="editCard('${c.id}')">
+        <div class="cq">Q: ${esc(c.front)}</div>
+        <div class="ca">A: ${esc(c.back)}</div>
+        <div class="cm"><span class="sr-badge ${cls[st]}">${labels[st]}</span>
+        <span>${c.sr?'间隔:'+c.sr.interval+'天':''}</span></div>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  document.getElementById('deckView').innerHTML=html;
+}
+
+// ===== Card CRUD =====
+function addCard(){
+  const front=document.getElementById('cardFront').value.trim();
+  const back=document.getElementById('cardBack').value.trim();
+  if(!front||!back){toast('请填写问题和答案','err');return}
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  deck.cards.push({id:uid(),front,back,sr:newSR(),created:today()});
+  save();renderDeckView();renderDecks();hideModal('addCardModal');
+  document.getElementById('cardFront').value='';document.getElementById('cardBack').value='';
+  toast('闪卡已添加','ok');
+}
+function editCard(cardId){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  const card=deck.cards.find(c=>c.id===cardId);if(!card)return;
+  editingCardId=cardId;
+  document.getElementById('editFront').value=card.front;
+  document.getElementById('editBack').value=card.back;
+  showModal('editCardModal');
+}
+function saveCard(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  const card=deck.cards.find(c=>c.id===editingCardId);if(!card)return;
+  const f=document.getElementById('editFront').value.trim();
+  const b=document.getElementById('editBack').value.trim();
+  if(!f||!b){toast('请填写问题和答案','err');return}
+  card.front=f;card.back=b;save();renderDeckView();hideModal('editCardModal');toast('已保存','ok');
+}
+function deleteCard(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  if(!confirm('确定删除这张闪卡？'))return;
+  deck.cards=deck.cards.filter(c=>c.id!==editingCardId);
+  save();renderDeckView();renderDecks();hideModal('editCardModal');toast('已删除','ok');
+}
+
+// ===== Study Mode =====
+function startStudy(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  const due=getDueCards(deck);
+  if(!due.length){toast('没有需要复习的卡片 🎉','info');return}
+  studyQueue=[...due].sort(()=>Math.random()-.5);
+  studyIndex=0;studyFlipped=false;
+  showView('studyView');
+  document.getElementById('topbarActions').innerHTML=`<button class="btn btn-sec btn-sm" onclick="exitStudy()">✕ 退出</button>`;
+  renderStudyCard();
+}
+function exitStudy(){selectDeck(currentDeckId)}
+function renderStudyCard(){
+  if(studyIndex>=studyQueue.length){renderStudyDone();return}
+  const card=studyQueue[studyIndex];
+  const total=studyQueue.length;
+  const pct=Math.round(studyIndex/total*100);
+  studyFlipped=false;
+
+  document.getElementById('studyView').innerHTML=`
+    <div class="study-wrap">
+      <div class="study-prog">
+        <div class="prog-bar"><div class="prog-fill" style="width:${pct}%"></div></div>
+        <div class="prog-txt">${studyIndex+1} / ${total}</div>
+      </div>
+      <div class="fc-wrap" onclick="flipCard()">
+        <div class="fc" id="flashcard">
+          <div class="fc-face fc-front">
+            <div class="fc-label">问题</div>
+            <div>${esc(card.front)}</div>
+            <div class="fc-hint">点击翻转</div>
+          </div>
+          <div class="fc-face fc-back">
+            <div class="fc-label">答案</div>
+            <div>${esc(card.back)}</div>
+          </div>
+        </div>
+      </div>
+      <div class="rate-btns" id="rateButtons" style="visibility:hidden">
+        <button class="rate-btn again" onclick="rateCard(0)">重来<span>1天</span></button>
+        <button class="rate-btn hard" onclick="rateCard(2)">困难<span>较短</span></button>
+        <button class="rate-btn good" onclick="rateCard(3)">良好<span>正常</span></button>
+        <button class="rate-btn easy" onclick="rateCard(5)">简单<span>较长</span></button>
+      </div>
+    </div>`;
+}
+function flipCard(){
+  if(studyFlipped)return;
+  studyFlipped=true;
+  document.getElementById('flashcard').classList.add('flipped');
+  document.getElementById('rateButtons').style.visibility='visible';
+}
+function rateCard(quality){
+  const card=studyQueue[studyIndex];
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  const real=deck.cards.find(c=>c.id===card.id);
+  if(real){
+    if(!real.sr)real.sr=newSR();
+    real.sr=calcSR(real.sr,quality);
+    save();
+  }
+  studyIndex++;renderStudyCard();
+}
+function renderStudyDone(){
+  document.getElementById('studyView').innerHTML=`
+    <div class="study-wrap"><div class="study-done">
+      <div style="font-size:3rem;margin-bottom:16px">🎉</div>
+      <h3>学习完成！</h3>
+      <p>你已完成本次 ${studyQueue.length} 张卡片的复习</p>
+      <button class="btn btn-pri" onclick="exitStudy()">返回卡组</button>
+    </div></div>`;
+}
+
+// ===== AI Generation =====
+function showGenerate(){
+  if(!state.settings.apiKey){toast('请先在设置中配置 DeepSeek API Key','err');showSettings();return}
+  document.getElementById('genTopic').value='';
+  document.getElementById('genNotes').value='';
+  document.getElementById('genStatus').style.display='none';
+  document.getElementById('genBtn').disabled=false;
+  toggleGenMode();showModal('generateModal');
+}
+function toggleGenMode(){
+  const m=document.getElementById('genMode').value;
+  document.getElementById('genTopicGroup').style.display=m==='topic'?'block':'none';
+  document.getElementById('genNotesGroup').style.display=m==='notes'?'block':'none';
+}
+async function generateCards(){
+  const mode=document.getElementById('genMode').value;
+  const topic=document.getElementById('genTopic').value.trim();
+  const notes=document.getElementById('genNotes').value.trim();
+  if(mode==='topic'&&!topic){toast('请输入主题','err');return}
+  if(mode==='notes'&&!notes){toast('请粘贴笔记内容','err');return}
+  const count=state.settings.cardCount||8;
+  let prompt;
+  if(mode==='topic'){
+    prompt=`请为以下主题生成${count}张闪卡（问答对），用于学习和记忆。主题：${topic}\n\n要求：\n1. 每张卡片包含一个问题和简洁的答案\n2. 覆盖该主题的核心知识点\n3. 由浅入深\n4. 严格按JSON数组格式返回：[{"front":"问题","back":"答案"}]\n5. 只返回JSON，不要其他内容`;
+  }else{
+    prompt=`请从以下笔记/文章中提取${count}个关键知识点，生成闪卡（问答对）。\n\n内容：\n${notes}\n\n要求：\n1. 提取最重要的知识点\n2. 每张卡片包含一个问题和简洁的答案\n3. 严格按JSON数组格式返回：[{"front":"问题","back":"答案"}]\n4. 只返回JSON，不要其他内容`;
+  }
+  document.getElementById('genStatus').style.display='block';
+  document.getElementById('genBtn').disabled=true;
+  try{
+    const resp=await fetch(state.settings.apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.settings.apiKey},
+      body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:prompt}],temperature:0.7,max_tokens:2000})
+    });
+    if(!resp.ok){const e=await resp.text();throw new Error('API错误: '+resp.status+' '+e)}
+    const data=await resp.json();
+    let text=data.choices[0].message.content.trim();
+    // extract JSON from possible markdown code block
+    const m=text.match(/\[[\s\S]*\]/);
+    if(!m)throw new Error('无法解析AI返回的内容');
+    const cards=JSON.parse(m[0]);
+    if(!Array.isArray(cards)||!cards.length)throw new Error('生成结果为空');
+    const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+    let added=0;
+    cards.forEach(c=>{
+      if(c.front&&c.back){
+        deck.cards.push({id:uid(),front:c.front.trim(),back:c.back.trim(),sr:newSR(),created:today()});
+        added++;
+      }
+    });
+    save();renderDeckView();renderDecks();hideModal('generateModal');
+    toast(`已生成 ${added} 张闪卡`,'ok');
+  }catch(e){
+    console.error(e);
+    document.getElementById('genStatus').innerHTML='❌ '+esc(e.message);
+    document.getElementById('genBtn').disabled=false;
+  }
+}
+
+// ===== Settings =====
+function showSettings(){
+  document.getElementById('apiKeyInput').value=state.settings.apiKey||'';
+  document.getElementById('apiUrlInput').value=state.settings.apiUrl||'https://api.deepseek.com/v1/chat/completions';
+  document.getElementById('cardCountInput').value=state.settings.cardCount||8;
+  showModal('settingsModal');
+}
+function saveSettings(){
+  state.settings.apiKey=document.getElementById('apiKeyInput').value.trim();
+  state.settings.apiUrl=document.getElementById('apiUrlInput').value.trim()||'https://api.deepseek.com/v1/chat/completions';
+  state.settings.cardCount=parseInt(document.getElementById('cardCountInput').value)||8;
+  save();hideModal('settingsModal');toast('设置已保存','ok');
+}
+
+// ===== Export =====
+function showExportMenu(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck||!deck.cards.length){toast('没有可导出的卡片','err');return}
+  const choice=prompt('导出格式：\n1 - JSON\n2 - CSV\n3 - Anki (制表符分隔)\n\n请输入数字：');
+  if(choice==='1')exportJSON();
+  else if(choice==='2')exportCSV();
+  else if(choice==='3')exportAnki();
+}
+function downloadFile(content,filename,type){
+  const blob=new Blob([content],{type});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=filename;a.click();URL.revokeObjectURL(a.href);
+}
+function exportJSON(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  const data={name:deck.name,desc:deck.desc,cards:deck.cards.map(c=>({front:c.front,back:c.back,sr:c.sr}))};
+  downloadFile(JSON.stringify(data,null,2),deck.name+'.json','application/json');
+  toast('JSON 已导出','ok');
+}
+function exportCSV(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  let csv='front,back\n';
+  deck.cards.forEach(c=>{csv+='"'+c.front.replace(/"/g,'""')+'","'+c.back.replace(/"/g,'""')+'"\n'});
+  downloadFile(csv,deck.name+'.csv','text/csv');
+  toast('CSV 已导出','ok');
+}
+function exportAnki(){
+  const deck=state.decks.find(d=>d.id===currentDeckId);if(!deck)return;
+  let txt='';
+  deck.cards.forEach(c=>{txt+=c.front.replace(/\t/g,' ')+'\t'+c.back.replace(/\t/g,' ')+'\n'});
+  downloadFile(txt,deck.name+'.txt','text/plain');
+  toast('Anki 格式已导出','ok');
+}
+
+// ===== Import =====
+function loadImportFile(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{document.getElementById('importData').value=e.target.result};
+  reader.readAsText(file);
+}
+function importCards(){
+  const fmt=document.getElementById('importFormat').value;
+  const raw=document.getElementById('importData').value.trim();
+  if(!raw){toast('请粘贴或选择导入数据','err');return}
+  const deck=state.decks.find(d=>d.id===currentDeckId);
+  if(!deck){toast('请先选择卡组','err');return}
+  let cards=[];
+  try{
+    if(fmt==='json'){
+      let data=JSON.parse(raw);
+      // support both array and {cards:[...]} format
+      if(data.cards)data=data.cards;
+      if(!Array.isArray(data))throw new Error('无效的JSON格式');
+      cards=data.filter(c=>c.front&&c.back).map(c=>({front:c.front.trim(),back:c.back.trim()}));
+    }else if(fmt==='csv'){
+      const lines=raw.split('\n').filter(l=>l.trim());
+      // skip header if it looks like one
+      let start=0;
+      if(lines[0]&&/^(front|question|问题)/i.test(lines[0]))start=1;
+      for(let i=start;i<lines.length;i++){
+        const m=lines[i].match(/^"([^"]*(?:""[^"]*)*)"\s*,\s*"([^"]*(?:""[^"]*)*)"$/);
+        if(m){cards.push({front:m[1].replace(/""/g,'"'),back:m[2].replace(/""/g,'"')})}
+        else{const p=lines[i].split(',');if(p.length>=2)cards.push({front:p[0].trim(),back:p.slice(1).join(',').trim()})}
+      }
+    }else if(fmt==='anki'){
+      const lines=raw.split('\n').filter(l=>l.trim()&&!l.startsWith('#'));
+      lines.forEach(l=>{const p=l.split('\t');if(p.length>=2)cards.push({front:p[0].trim(),back:p[1].trim()})});
+    }
+    if(!cards.length)throw new Error('未找到有效的闪卡数据');
+    cards.forEach(c=>{deck.cards.push({id:uid(),front:c.front,back:c.back,sr:newSR(),created:today()})});
+    save();renderDeckView();renderDecks();hideModal('importModal');
+    document.getElementById('importData').value='';
+    toast(`已导入 ${cards.length} 张闪卡`,'ok');
+  }catch(e){toast('导入失败: '+e.message,'err')}
+}
+
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown',e=>{
+  // In study mode
+  if(document.getElementById('studyView').classList.contains('active')){
+    if(e.code==='Space'){e.preventDefault();flipCard()}
+    if(studyFlipped){
+      if(e.key==='1')rateCard(0);
+      if(e.key==='2')rateCard(2);
+      if(e.key==='3')rateCard(3);
+      if(e.key==='4')rateCard(5);
+    }
+    if(e.key==='Escape')exitStudy();
+  }
+  // Close modals with Escape
+  if(e.key==='Escape'){
+    document.querySelectorAll('.modal-overlay.show').forEach(m=>m.classList.remove('show'));
+  }
+});
+
+// ===== Init =====
+function init(){
+  load();
+  renderDecks();
+  // If no decks, show welcome
+  if(!state.decks.length){
+    showView('welcomeView');
+  }
+}
+init();
+</script>
+</body>
+</html>
